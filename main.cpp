@@ -5,10 +5,10 @@
 #include <cstring>
 #include <fstream>
 
-pthread_t tid[2];
-pthread_mutex_t mutex;
+pthread_t tid[2]; // номера потоков
+pthread_mutex_t mutex; // мьютекс, который будет использоваться для синхронизации потоков
 
-struct Point {
+struct Point { //структура точка, для обозначения координат на которых расположены садовники и объекты на поле сада
     int x;
     int y;
 
@@ -27,7 +27,7 @@ struct Point {
     }
 };
 
-enum direction {
+enum direction { // направления, в которых садовники могут совершать движения
     UP,
     DOWN,
     LEFT,
@@ -35,33 +35,34 @@ enum direction {
 };
 
 enum cell { // типы квадратов
-    NOT_GARDENED, // не ухоженный квадрат сада, но доступный для ухаживания
+    NOT_GARDENED, // неухоженный квадрат сада, но доступный для ухаживания
     GARDENED, // уже ухоженный квадрат сада
     ROCK, // камень
     POND, // пруд
     BEING_GARDENED // квадрат, за которым в данный момент ухаживает садовник
 };
 
-class Field {
+class Field { // поле сада
 public:
-    void placeTheObstacles() { // создаем нужное количество препятствий на поле
+    void placeObstacles() { // создаем нужное количество препятствий на поле
         srand(time(nullptr));
-        int amount = rand() % 21 + 10;
+        int amount = rand() % 21 +
+                     10; // количество объектов - случайное число от 10 до 30, так как размер поля 100, а требуется заполнить препятствиями от 10% до 30%
         for (int i = 0; i < amount; ++i) {
-            int random_obstacle = rand() % 2;
-            cell new_cell;
+            int random_obstacle = rand() % 2; // случайное число 0 или 1, если 0 то камни, иначе - пруд
+            cell new_cell; // новое препятствие
             if (random_obstacle == 0) {
                 new_cell = ROCK;
             } else {
                 new_cell = POND;
             }
-            int random_x, random_y;
+            int random_x, random_y; // случайные координаты, в которых будет располагаться препятствие
             do {
                 random_x = rand() % 10;
                 random_y = rand() % 10;
             } while (field_[random_x][random_y] != NOT_GARDENED);
-            Point new_location(random_x, random_y);
-            setCell(new_location, new_cell);
+            Point new_location(random_x, random_y); // создаем точку с выбранными случайными координатами
+            setCell(new_location, new_cell); // ставим препятствие в эту точку
         }
     }
 
@@ -79,7 +80,6 @@ public:
     }
 
     void printField(std::ofstream &output) { // выводим поле в файл
-        pthread_mutex_lock(&mutex);
         for (int i = 9; i >= 0; --i) {
             for (int j = 0; j < 10; ++j) {
                 Point current(j, i);
@@ -87,11 +87,9 @@ public:
             }
             output << std::endl;
         }
-        pthread_mutex_unlock(&mutex);
     }
 
     void printField(Point first_gardener_location, Point second_gardener_location) { // выводим поле в консоль
-        pthread_mutex_lock(&mutex);
         for (int i = 9; i >= 0; --i) {
             for (int j = 0; j < 10; ++j) {
                 Point current(j, i);
@@ -107,7 +105,6 @@ public:
             }
             std::cout << std::endl;
         }
-        pthread_mutex_unlock(&mutex);
     }
 
     cell getCell(Point point) {
@@ -121,7 +118,7 @@ public:
 private:
     std::array<std::array<cell, 10>, 10> field_ = {{{NOT_GARDENED}}}; // поле сада
     void pickColor(Point current,
-                   std::ofstream &output) { // выводим клетку в файл с фоном нужного цвета, в зависимости от того есть ли на ней садовники
+                   std::ofstream &output) { // выводим квадрат в файл с фоном нужного цвета, в зависимости от того есть ли на нем садовники
 
         switch (getCell(current)) {
             case NOT_GARDENED:
@@ -143,22 +140,22 @@ private:
     }
 
     void pickColor(Point current,
-                   const std::string &color) { // выводим клетку в консоль с фоном нужного цвета, в зависимости от того есть ли на ней садовники
+                   const std::string &color) { // выводим квадрат в консоль с фоном нужного цвета, в зависимости от того есть ли на нем садовники
         switch (getCell(current)) {
             case NOT_GARDENED:
-                std::cout << "\033[" + color + "m   \033[m";
+                std::cout << "\033[" + color + "m  \033[m";
                 break;
             case GARDENED:
-                std::cout << "\033[" + color + "m\xF0\x9F\x8C\xBB \033[m";
+                std::cout << "\033[" + color + "m\xF0\x9F\x8C\xBB\033[m";
                 break;
             case ROCK:
-                std::cout << "\033[" + color + "m\xF0\x9F\x97\xBF \033[m";
+                std::cout << "\033[" + color + "m\xF0\x9F\x97\xBF\033[m";
                 break;
             case POND:
-                std::cout << "\033[" + color + "m\xF0\x9F\x94\xB5 \033[m";
+                std::cout << "\033[" + color + "m\xF0\x9F\x94\xB5\033[m";
                 break;
             case BEING_GARDENED:
-                std::cout << "\033[" + color + "m\xF0\x9F\x9A\xA7 \033[m";
+                std::cout << "\033[" + color + "m\xF0\x9F\x9A\xA7\033[m";
                 break;
         }
     }
@@ -167,11 +164,11 @@ private:
 class Gardener {
 public:
     Point current_location; // текущее местоположение садовника
-    bool haveFinished = false;
+    bool haveFinished = false; // флаг, который сигнализирует о том, что садовник достиг финального квадрата
 
     void move() { // садовник делает ход
         (*field).garden(step_duration, current_location);
-        if (current_location == ending_point) { // если обошли все клетки, то останавливаемся
+        if (current_location == ending_point) { // если обошли все квадраты, то останавливаемся
             haveFinished = true;
             return;
         }
@@ -201,13 +198,13 @@ public:
     }
 
 private:
-    Point ending_point; // точка, в которой садовник окажется, когда обойдет все клетки
+    Point ending_point; // точка, в которой садовник окажется, когда обойдет все квадраты
     direction first_direction; // сначала идем в этом направлении
     direction second_direction; // когда дошли до края и развернулись, идем в этом направлении, потом меняем обратно
     direction current_direction; // текущее направление
     direction direction_when_blocked; // идем в этом направлении, когда подошли к краю
     Field *field; // указатель на поле сада
-    int step_duration; // длительность того сколько занимает прохождение по необрабатываемой клетке, обрабатывание клетки x2 от step_duration
+    int step_duration; // длительность того сколько занимает прохождение по необрабатываемому квадрату, обрабатывание квадрата x2 от step_duration
 
     bool checkIfTheWayIsBlocked() { // проверяем подошли ли к краю
         return current_direction == RIGHT && current_location.x == 9 ||
@@ -219,27 +216,35 @@ private:
     void moveInDirection(direction direction) { // двигаемся в нужном направлении
         switch (direction) {
             case UP:
+                pthread_mutex_lock(&mutex);
                 while ((*field).getCell(Point(current_location.x, current_location.y + 1)) == BEING_GARDENED) {
                     printf(""); // ждем пока освободится, чтобы пройти
                 }
+                pthread_mutex_unlock(&mutex);
                 current_location.y += 1;
                 break;
             case DOWN:
+                pthread_mutex_lock(&mutex);
                 while ((*field).getCell(Point(current_location.x, current_location.y - 1)) == BEING_GARDENED) {
                     printf(""); // ждем пока освободится, чтобы пройти
                 }
+                pthread_mutex_unlock(&mutex);
                 current_location.y -= 1;
                 break;
             case LEFT:
+                pthread_mutex_lock(&mutex);
                 while ((*field).getCell(Point(current_location.x - 1, current_location.y)) == BEING_GARDENED) {
                     printf(""); // ждем пока освободится, чтобы пройти
                 }
+                pthread_mutex_unlock(&mutex);
                 current_location.x -= 1;
                 break;
             case RIGHT:
+                pthread_mutex_lock(&mutex);
                 while ((*field).getCell(Point(current_location.x + 1, current_location.y)) == BEING_GARDENED) {
                     printf(""); // ждем пока освободится, чтобы пройти
                 }
+                pthread_mutex_unlock(&mutex);
                 current_location.x += 1;
                 break;
         }
@@ -254,25 +259,25 @@ static void *startGardening(void *arg) { // запускаем садовник�
 }
 
 int main(int argc, char *argv[]) {
-    static struct option longOptions[] = {
+    static struct option longOptions[] = { // опции командной строки
             {"files",  required_argument, nullptr, 'f'},
-            {"random", no_argument, nullptr, 'r'},
+            {"random", no_argument,       nullptr, 'r'},
             {"std",    no_argument,       nullptr, 's'}
     };
-    int optionIndex = 0;
-    int arg = getopt_long(argc, argv, "f:rs", longOptions, &optionIndex);
+    int optionIndex = 0; // индекс опции командной строки
+    int arg = getopt_long(argc, argv, "f:rs", longOptions, &optionIndex); // текущий аргумент командной строки
     Field my_field; // создаем поле
-    my_field.placeTheObstacles(); // расставляем препятствия
+    my_field.placeObstacles(); // расставляем препятствия
     switch (arg) {
         case 'f': {
-            std::ifstream in_stream;
-            std::ofstream out_stream;
+            std::ifstream in_stream; // поток файла с входными данными
+            std::ofstream out_stream; // поток файла с выходными данными
             in_stream.open(strtok(optarg, ":"));
             out_stream.open(strtok(nullptr, ":"));
-            double speed_first, speed_second;
+            double speed_first, speed_second; // скорости первого и второго садовников
             in_stream >> speed_first;
             in_stream >> speed_second;
-            int step_duration_first = 1000000 / speed_first;
+            int step_duration_first = 1000000 / speed_first; // длительность шага соответствующего садовника
             int step_duration_second = 1000000 / speed_second;
             Gardener first_gardener(Point(0, 9), Point(0, 0),
                                     RIGHT, DOWN, LEFT,
@@ -298,10 +303,11 @@ int main(int argc, char *argv[]) {
         }
         case 'r': {
             srand(time(nullptr));
-            int speed_first = rand() % 100 + 1;
-            int speed_second = rand() % 100 + 1;
-            std::cout << "Following numbers were generated: " + std::to_string(speed_first) + " " + std::to_string(speed_second) << std::endl;
-            int step_duration_first = 1000000 / speed_first;
+            double speed_first = rand() % 10 + 0.1;
+            double speed_second = rand() % 10 + 0.1;
+            std::cout << "Following numbers were generated: " + std::to_string(speed_first) + " " +
+                         std::to_string(speed_second) << std::endl;
+            int step_duration_first = 1000000 / speed_first; // длительность шага соответствующего садовника
             int step_duration_second = 1000000 / speed_second;
             Gardener first_gardener(Point(0, 9), Point(0, 0),
                                     RIGHT, DOWN, LEFT,
@@ -325,10 +331,10 @@ int main(int argc, char *argv[]) {
             std::cout
                     << "Введите скорости (квадратов в секунду), с которыми будут работать садовники (2 положительных рациональных числа, разделенным пробелом):"
                     << std::endl;
-            double speed_first, speed_second;
+            double speed_first, speed_second; // скорость соответствующего садовника
             std::cin >> speed_first;
             std::cin >> speed_second;
-            int step_duration_first = 1000000 / speed_first;
+            int step_duration_first = 1000000 / speed_first; // длительность шага соответствующего садовника
             int step_duration_second = 1000000 / speed_second;
             Gardener first_gardener(Point(0, 9), Point(0, 0),
                                     RIGHT, DOWN, LEFT,
@@ -349,7 +355,7 @@ int main(int argc, char *argv[]) {
             break;
         }
         default: {
-            int step_duration_first = 1000000 / std::stod(argv[1]);
+            int step_duration_first = 1000000 / std::stod(argv[1]); // длительность шага соответствующего садовника
             int step_duration_second = 1000000 / std::stod(argv[2]);
             Gardener first_gardener(Point(0, 9), Point(0, 0),
                                     RIGHT, DOWN, LEFT,
